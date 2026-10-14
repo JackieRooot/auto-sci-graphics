@@ -3,7 +3,7 @@
 
 r"""
 ================================================================================
-脚本名称: FEDataLinePlot.py
+脚本名称: FEline.py
 功能描述: 读取 Excel 中的法拉第效率数据，生成折线图，支持配置文件管理物质名称和LaTeX格式
          可选从SD工作表读取标准差数据绘制误差棒
 作者: 
@@ -13,7 +13,7 @@ r"""
 
 【输入要求】
     数据文件: FEDataSourceForColumns.xlsx
-    文件路径: 脚本所在目录（自动定位，无需手动指定路径）
+    文件路径: 用 -i 指定；不指定时使用脚本所在目录下的 FEDataSourceForColumns.xlsx
     数据格式:
         - 工作表 'FE': 提供电位和各个物质的法拉第效率数据（必需）
         - 工作表 'SD': 提供电位和各个物质的标准差数据（使用 -e 参数时必需）
@@ -41,22 +41,26 @@ r"""
     自动重名处理: 如文件已存在，自动添加 _1, _2 等后缀
 
 【使用示例】
+    # 指定自己的数据文件
+    python FEline.py -i D:/MyData/FE_run3.xlsx -e
+    
     # 基础用法 (默认配色，无误差棒)
-    python FEDataLinePlot.py
+    python FEline.py
     
     # 带误差棒的折线图
-    python FEDataLinePlot.py -e
+    python FEline.py -e
     
     # 使用 -o 参数指定输出文件路径
-    python FEDataLinePlot.py -o D:/MyFigures/my_chart.png -e
+    python FEline.py -o D:/MyFigures/my_chart.png -e
     
     # 使用色盲友好配色 + 误差棒
-    python FEDataLinePlot.py -cb -e
+    python FEline.py -cb -e
     
     # 指定输出目录 + 误差棒
-    python FEDataLinePlot.py -e -o D:/MyFigures/
+    python FEline.py -e -o D:/MyFigures/
 
 【命令行参数】
+    -i, --input     可选，输入Excel文件路径（默认使用脚本同目录下的 FEDataSourceForColumns.xlsx）
     -o, --output    可选，输出图片路径（支持文件路径或目录路径）
                     - 如果是目录：在该目录下使用默认文件名
                     - 如果是文件：直接保存为该文件
@@ -105,10 +109,10 @@ r"""
     2. 色盲友好模式下使用 Wong 8色方案，提升可读性
     3. 图例横排在一行，适用于多物质对比场景
     4. 自动处理文件重名，避免覆盖
-    5. 数据文件自动定位到脚本同目录，增强可移植性
+    5. 数据文件可用 -i 指定，不指定时自动定位到脚本同目录
 
 【注意事项】
-    1. 数据文件 FEDataSourceForColumns.xlsx 必须与脚本放在同一目录下
+    1. 不加 -i 时，数据文件 FEDataSourceForColumns.xlsx 须与脚本放在同一目录下
     2. 原始数据为小数 (如 0.85 代表 85%)，脚本自动转换为百分比显示
     3. 各物质数据按从右到左的顺序绘制
     4. 色盲友好模式下使用 Wong 8色方案，提升可读性
@@ -116,6 +120,7 @@ r"""
     6. 图例使用 LaTeX 格式渲染，确保系统中已安装 LaTeX 支持（或使用 matplotlibrc 配置）
 
 【版本历史】
+    v3.1 - 新增 -i 参数指定输入Excel文件，不指定时仍使用脚本同目录下的示例文件
     v3.0 - 新增 -e 参数控制是否绘制误差棒
          - 无 -e 参数时仅读取 FE 工作表
          - 有 -e 参数时同时读取 FE 和 SD 工作表并绘制误差棒
@@ -393,11 +398,12 @@ def generate_lineplot_with_error(ax, categories, non_empty_cols, df_fe, df_sd, c
                 label=get_latex_label(col)
             )
 
-def generate_figure(output_path=None, use_cb=False, use_error=False):
+def generate_figure(input_path=None, output_path=None, use_cb=False, use_error=False):
     """
     读取数据并生成折线图，保存到指定路径
-    
+
     参数:
+        input_path: 输入Excel文件路径（None 时使用脚本同目录下的 FEDataSourceForColumns.xlsx）
         output_path: 输出路径（支持文件路径或目录路径）
         use_cb: 是否使用色盲友好配色
         use_error: 是否绘制误差棒（需要SD工作表）
@@ -410,10 +416,12 @@ def generate_figure(output_path=None, use_cb=False, use_error=False):
     print(f"误差棒状态: {error_status}")
 
     # ── 读取数据 ──
-    # 获取当前脚本所在目录
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    # 拼接excel文件名
-    excel_path = os.path.join(script_dir, 'FEDataSourceForColumns.xlsx')
+    if input_path is None:
+        # 未指定时使用脚本所在目录下的示例数据文件
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        excel_path = os.path.join(script_dir, 'FEDataSourceForColumns.xlsx')
+    else:
+        excel_path = input_path
 
     if not os.path.exists(excel_path):
         print(f"错误: 找不到数据源文件 {excel_path}")
@@ -511,10 +519,12 @@ def generate_figure(output_path=None, use_cb=False, use_error=False):
         default_filename = DEFAULT_FILENAME_WITH_ERROR if use_error else DEFAULT_FILENAME
         output_path = data_dir / default_filename
     else:
+        # 先用原始字符串判断结尾分隔符，Path() 会去掉末尾的 '/'
+        is_dir_arg = str(output_path).endswith(('/', '\\'))
         output_path = Path(output_path)
-        
+
         # 判断是否为目录（以分隔符结尾或已存在的目录）
-        if str(output_path).endswith(('/', '\\')) or output_path.is_dir():
+        if is_dir_arg or output_path.is_dir():
             # 如果是目录，在目录下创建默认文件名
             default_filename = DEFAULT_FILENAME_WITH_ERROR if use_error else DEFAULT_FILENAME
             output_path = output_path / default_filename
@@ -533,6 +543,8 @@ def generate_figure(output_path=None, use_cb=False, use_error=False):
 if __name__ == '__main__':
     # ── 设置命令行参数解析 ──
     parser = argparse.ArgumentParser(description="生成法拉第效率折线图（支持带/不带误差棒）")
+    parser.add_argument('-i', '--input', type=str, default=None,
+                        help='输入Excel文件路径（默认使用脚本同目录下的 FEDataSourceForColumns.xlsx）')
     parser.add_argument('-o', '--output', type=str, default=None, 
                         help='输出图片路径（支持文件路径或目录路径）')
     parser.add_argument('-cb', action='store_true', 
@@ -543,4 +555,4 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     # 执行绘图
-    generate_figure(output_path=args.output, use_cb=args.cb, use_error=args.e)
+    generate_figure(input_path=args.input, output_path=args.output, use_cb=args.cb, use_error=args.e)

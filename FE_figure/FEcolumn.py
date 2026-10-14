@@ -14,7 +14,7 @@ r"""
 
 【输入要求】
     数据文件: FEDataSourceForColumns.xlsx
-    文件路径: 脚本所在目录（自动定位，无需手动指定路径）
+    文件路径: 用 -i 指定；不指定时使用脚本所在目录下的 FEDataSourceForColumns.xlsx
     数据格式:
         - 工作表 'FE': 提供电位和各个物质的法拉第效率数据（必需）
         - 工作表 'SD': 提供电位和各个物质的标准差数据（使用 -e 参数时必需）
@@ -44,6 +44,9 @@ r"""
     自动重名处理: 如文件已存在，自动添加 _1, _2 等后缀
 
 【使用示例】
+    # 指定自己的数据文件
+    python FEcolumn.py -i D:/MyData/FE_run3.xlsx -e
+    
     # 基础用法 (默认配色，堆积柱状图，无误差线)
     python FEcolumn.py
     
@@ -63,6 +66,7 @@ r"""
     python FEcolumn.py -group -e -o D:/MyFigures/
 
 【命令行参数】
+    -i, --input     可选，输入Excel文件路径（默认使用脚本同目录下的 FEDataSourceForColumns.xlsx）
     -o, --output    可选，输出图片路径（支持文件路径或目录路径）
                     - 如果是目录：在该目录下使用默认文件名
                     - 如果是文件：直接保存为该文件
@@ -111,6 +115,7 @@ r"""
     def get_display_name(col_name): ...
 
 【版本历史】
+    v3.2 - 新增 -i 参数指定输入Excel文件，不指定时仍使用脚本同目录下的示例文件
     v3.1 - 新增 -e 参数控制是否绘制误差线
          - 无 -e 参数时仅读取 FE 工作表
          - 有 -e 参数时同时读取 FE 和 SD 工作表并绘制误差线
@@ -516,11 +521,12 @@ def generate_grouped_bar_with_error(ax, categories, non_empty_cols, df_fe, df_sd
     )
 
 
-def generate_figure(output_path=None, use_cb=False, use_group=False, use_error=False):
+def generate_figure(input_path=None, output_path=None, use_cb=False, use_group=False, use_error=False):
     """
     读取数据并生成柱状图，保存到指定路径
-    
+
     参数:
+        input_path: 输入Excel文件路径（None 时使用脚本同目录下的 FEDataSourceForColumns.xlsx）
         output_path: 输出路径（支持文件路径或目录路径）
         use_cb: 是否使用色盲友好配色
         use_group: 是否使用分组柱状图（False为堆积柱状图）
@@ -536,11 +542,13 @@ def generate_figure(output_path=None, use_cb=False, use_group=False, use_error=F
     print(f"误差线状态: {error_status}")
 
     # ── 读取数据 ──
-    # 获取当前脚本所在目录
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    # 拼接excel文件名
-    excel_path = os.path.join(script_dir, 'FEDataSourceForColumns.xlsx')
-    
+    if input_path is None:
+        # 未指定时使用脚本所在目录下的示例数据文件
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        excel_path = os.path.join(script_dir, 'FEDataSourceForColumns.xlsx')
+    else:
+        excel_path = input_path
+
     if not os.path.exists(excel_path):
         print(f"错误: 找不到数据源文件 {excel_path}")
         return
@@ -621,10 +629,12 @@ def generate_figure(output_path=None, use_cb=False, use_group=False, use_error=F
             default_filename = DEFAULT_STACKED_FILENAME_WITH_ERROR if use_error else DEFAULT_STACKED_FILENAME
         output_path = data_dir / default_filename
     else:
+        # 先用原始字符串判断结尾分隔符，Path() 会去掉末尾的 '/'
+        is_dir_arg = str(output_path).endswith(('/', '\\'))
         output_path = Path(output_path)
-        
+
         # 判断是否为目录（以分隔符结尾或已存在的目录）
-        if str(output_path).endswith(('/', '\\')) or output_path.is_dir():
+        if is_dir_arg or output_path.is_dir():
             # 如果是目录，在目录下创建默认文件名
             if use_group:
                 default_filename = DEFAULT_GROUPED_FILENAME_WITH_ERROR if use_error else DEFAULT_GROUPED_FILENAME
@@ -646,6 +656,8 @@ def generate_figure(output_path=None, use_cb=False, use_group=False, use_error=F
 if __name__ == '__main__':
     # ── 设置命令行参数解析 ──
     parser = argparse.ArgumentParser(description="生成法拉第效率柱状图（支持带/不带误差线的堆积/分组柱状图）")
+    parser.add_argument('-i', '--input', type=str, default=None,
+                        help='输入Excel文件路径（默认使用脚本同目录下的 FEDataSourceForColumns.xlsx）')
     parser.add_argument('-o', '--output', type=str, default=None, 
                         help='输出图片路径（支持文件路径或目录路径）')
     parser.add_argument('-cb', action='store_true', 
@@ -658,5 +670,5 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     # 执行绘图
-    generate_figure(output_path=args.output, use_cb=args.cb, 
+    generate_figure(input_path=args.input, output_path=args.output, use_cb=args.cb,
                    use_group=args.group, use_error=args.e)

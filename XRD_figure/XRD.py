@@ -54,10 +54,10 @@ Excel文件格式要求
     python XRD.py -i input.xlsx -cb
 
 自定义X轴范围和高度：
-    python XRD.py -i input.xlsx --xmin 10 --xmax 80 --height 150
+    python XRD.py -i input.xlsx --xmin 10 --xmax 80 --spacing 0.8
 
 完整参数示例：
-    python XRD.py -i data.xlsx -o ./plots/ -cb --xmin 5 --xmax 90 --height 120
+    python XRD.py -i data.xlsx -o ./plots/ -cb --xmin 5 --xmax 90 --spacing 1.2
 
 命令行参数
 ----------
@@ -65,7 +65,9 @@ Excel文件格式要求
 -o, --output     : 输出图片路径（支持文件路径或目录路径）
 -cb              : 使用色盲友好配色方案（Wong配色）
 --xmin, --xmax   : X轴范围（默认：10-90）
---height         : 样品曲线基础高度（默认：100）
+--spacing        : 相邻样品曲线的间距系数（默认：1.0）
+                   1.0 表示间距等于单条曲线归一化后的最高峰高度；
+                   调小则曲线更紧凑（允许重叠），调大则更松散
 -h, --help       : 显示帮助信息
 
 输出说明
@@ -99,6 +101,10 @@ Excel文件格式要求
 
 版本历史
 --------
+v2.2 (2026-10-14)
+- 变更：删除 --height 参数（曲线高度、偏移与 Y 轴范围等比缩放，改它不影响画面）
+- 新增：--spacing 参数，按比例调整相邻样品曲线的间距
+
 v2.1 (2026-06-07)
 - 改进：默认输入路径改为脚本所在目录，增强可移植性
 - 改进：使用 vlines/hlines 替代 stem 绘图，提高兼容性
@@ -112,7 +118,7 @@ v2.0 (2026-06-07)
 作者
 ----
 XRD Data Processing Tool
-最后更新：2026-06-07
+最后更新：2026-10-14
 """
 
 import numpy as np
@@ -276,7 +282,7 @@ def format_pdf_label(text):
     return f'$\\mathregular{{{escaped_text}}}$'
 
 def plot_xrd(samples, standards, output_path, use_cb_palette=False, 
-             x_range=(10, 90), normalize=True, base_height=100):
+             x_range=(10, 90), normalize=True, base_height=100, spacing=1.0):
     """
     绘制XRD图谱
     
@@ -287,7 +293,8 @@ def plot_xrd(samples, standards, output_path, use_cb_palette=False,
         use_cb_palette: 是否使用色盲友好配色
         x_range: X轴范围 (min, max)
         normalize: 是否归一化强度
-        base_height: 样品曲线的基础高度
+        base_height: 样品曲线的基础高度（内部绘图单位，所有纵向尺寸与之等比，改它不影响画面）
+        spacing: 相邻样品曲线的间距系数（相对于 base_height）
     """
     setup_plot_style()
     
@@ -335,7 +342,7 @@ def plot_xrd(samples, standards, output_path, use_cb_palette=False,
     # 绘制样品曲线（堆叠显示）
     num_samples = len(sample_curves)
     num_standards = len(standards)
-    sample_offsets = [base_height * i * 1 for i in range(num_samples)]  # 样品之间重叠少一些
+    sample_offsets = [base_height * spacing * i for i in range(num_samples)]  # spacing 越小曲线越紧凑
     PDF_offsets = num_standards * base_height * FIGURE_CONFIG['card_height_ratio'] #这是为每张PDF卡片预留单样品指定倍数的高度。
     
     for i, curve in enumerate(sample_curves):
@@ -435,7 +442,8 @@ def main():
                        help='输出图片路径（支持文件路径或目录路径）')
     parser.add_argument('--xmin', type=float, default=10, help='X轴最小值')
     parser.add_argument('--xmax', type=float, default=90, help='X轴最大值')
-    parser.add_argument('--height', type=float, default=100, help='样品曲线基础高度')
+    parser.add_argument('--spacing', type=float, default=1.0,
+                       help='相邻样品曲线的间距系数（默认 1.0，调小更紧凑，调大更松散）')
     
     args = parser.parse_args()
     
@@ -466,7 +474,7 @@ def main():
     
     print("正在绘制图谱...")
     plot_xrd(samples, standards, output_path, args.cb,
-            (args.xmin, args.xmax), True, args.height)
+            (args.xmin, args.xmax), True, spacing=args.spacing)
 
 if __name__ == '__main__':
     main()

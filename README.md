@@ -1,5 +1,7 @@
 # auto-sci-graphics
 
+**中文** | [English](README.en.md)
+
 用 Python 一条命令画出风格统一、可直接放进论文的电催化数据图。不需要打开 Origin，也不需要一张张手动调格式。
 
 目前支持三种图：
